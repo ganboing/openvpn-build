@@ -6,7 +6,10 @@ ROOT="${ROOT:-tmp}"
 OPENVPN_ROOT="${ROOT}/openvpn"
 OPENVPN_ROOT_I686="${ROOT}/i686"
 OPENVPN_ROOT_X86_64="${ROOT}/x86_64"
+OPENVPNSERV2_EXECUTABLE="${ROOT}/openvpnserv2.exe"
+TAP_WINDOWS_INSTALLER="tap-windows.exe"
 EASYRSA_ROOT="${ROOT}/easy-rsa"
+VERSION_STRING="2.4.6-xor"
 
 SIGN_DIGEST=${SIGN_DIGEST:-sha256}
 
@@ -38,30 +41,6 @@ codesign() {
 	fi
 }
 
-layout() {
-	mkdir -p "${OUTPUT_DIR}"
-	rm -fr "${ROOT}"
-	mkdir "${ROOT}"
-	mkdir "${OPENVPN_ROOT}"
-
-	mkdir "${OPENVPN_ROOT_I686}"
-	mkdir "${OPENVPN_ROOT_X86_64}"
-
-	tar -C "${OPENVPN_ROOT_I686}" -xf "${OPENVPN_TARBALL_I686}" || die "extract openvpn: ${OPENVPN_TARBALL_I686}"
-	tar -C "${OPENVPN_ROOT_X86_64}" -xf "${OPENVPN_TARBALL_X86_64}" || die "extract openvpn: ${OPENVPN_TARBALL_X86_64}"
-
-	if [ -n "${EASYRSA_TARBALL}" ]; then
-		tar -C "${ROOT}" -xf "${EASYRSA_TARBALL}" || die "extract easy rsa"
-		mv "${ROOT}"/easy-rsa-*/easy-rsa "${EASYRSA_ROOT}"
-	fi
-}
-
-text() {
-	find "${OPENVPN_ROOT}/share/doc"/*  -type f | xargs unix2dos || die "unix2dos"
-	if [ -d "${EASYRSA_ROOT}" ]; then
-		unix2dos "${EASYRSA_ROOT}/2.0"/*.cnf "${EASYRSA_ROOT}/Windows"/* || die "unix2dos"
-	fi
-}
 
 sign() {
 	find "${ROOT}" -name '*.dll' -or -name '*.exe' | while read f; do
@@ -70,26 +49,12 @@ sign() {
 }
 
 main() {
-	layout
 
-	. "${OPENVPN_ROOT_I686}/version.sh" || die "cannot find openvpn version.sh"
-
-	text
-	sign
-
-	mkdir -p ${OPENVPN_ROOT}/share/doc/openvpn/
-
-	cat \
-		"${OPENVPN_ROOT_I686}/share/doc/openvpn/COPYING" \
-		"${OPENVPN_ROOT_I686}/share/doc/openvpn/COPYRIGHT.GPL" \
-		> "${OPENVPN_ROOT}/share/doc/openvpn/license.txt" || die "license.txt"
-	
-	VERSION_STRING="${OPENVPN_PACKAGE_VERSION}-I${INSTALLER_VERSION}${INSTALLER_SUFFIX}"
 	OUTPUT="${OUTPUT_DIR}/openvpn-install-${VERSION_STRING}.exe"
 
 	"${MAKENSIS}" \
 		-DARCH="${ARCH}" \
-		-DPACKAGE_NAME="${OPENVPN_PACKAGE_NAME}" \
+		-DPACKAGE_NAME="OpenVPN" \
 		-DVERSION_STRING="${VERSION_STRING}" \
 		-DSPECIAL_BUILD="${SPECIAL_BUILD}" \
 		-DOPENVPN_ROOT="$(dospath "${OPENVPN_ROOT}")" \
@@ -104,11 +69,9 @@ main() {
 		-DOUTPUT="${OUTPUT}" \
 		openvpn.nsi || die "makensis"
 
-	codesign "${OUTPUT}"
 }
 
 OUTPUT_DIR="."
-INSTALLER_VERSION="000_snap"
 SPECIAL_BUILD=""
 
 while [ -n "$1" ]; do
@@ -119,21 +82,6 @@ while [ -n "$1" ]; do
 			;;
 		--special-build=*)
 			SPECIAL_BUILD="${v}"
-			;;
-		--openvpn-bin-tarball-i686=*)
-			OPENVPN_TARBALL_I686="${v}"
-			;;
-                --openvpn-bin-tarball-x86_64=*)
-                        OPENVPN_TARBALL_X86_64="${v}"
-			;;
-		--easy-rsa-tarball=*)
-			EASYRSA_TARBALL="${v}"
-			;;
-		--tap-windows=*)
-			TAP_WINDOWS_INSTALLER="${v}"
-			;;
-		--openvpnserv2=*)
-			OPENVPNSERV2_EXECUTABLE="${v}"
 			;;
 		--sign)
 			DO_SIGN=1
@@ -176,18 +124,18 @@ __EOF__
 	shift
 done
 
-[ -n "${OPENVPN_TARBALL_I686}" ] || die "please specify openvpn binary tarball"
-[ -n "${OPENVPN_TARBALL_X86_64}" ] || die "please specify openvpn binary tarball"
-[ -f "${OPENVPN_TARBALL_I686}" ] || die "cannot find openvpn binary tarball '${OPENVPN_TARBALL_I686}'"
-[ -f "${OPENVPN_TARBALL_X86_64}" ] || die "cannot find openvpn binary tarball '${OPENVPN_TARBALL_X86_64}'"
+#[ -n "${OPENVPN_TARBALL_I686}" ] || die "please specify openvpn binary tarball"
+#[ -n "${OPENVPN_TARBALL_X86_64}" ] || die "please specify openvpn binary tarball"
+#[ -f "${OPENVPN_TARBALL_I686}" ] || die "cannot find openvpn binary tarball '${OPENVPN_TARBALL_I686}'"
+#[ -f "${OPENVPN_TARBALL_X86_64}" ] || die "cannot find openvpn binary tarball '${OPENVPN_TARBALL_X86_64}'"
 [ -f "${OPENVPNSERV2_EXECUTABLE}" ] || die "cannot find openvpnserv2 executable '${OPENVPNSERV2_EXECUTABLE}'"
-if [ -n "${EASYRSA_TARBALL}" ]; then
-	[ -f "${EASYRSA_TARBALL}" ] || die "cannot find easy-rsa tarball '${EASYRSA_TARBALL}'"
-fi
-if [ -n "${DO_SIGN}" ]; then
-	[ -n "${SIGN_PKCS12}" ] || die "please specify PKCS#12 file"
-	[ -f "${SIGN_PKCS12}" ] || die "cannot find PKCS#12 file '${SIGN_PKCS12}'"
-fi
-SIGN_TIMESTAMP_URL="${SIGN_TIMESTAMP_URL:-http://timestamp.verisign.com/scripts/timstamp.dll}"
+#if [ -n "${EASYRSA_TARBALL}" ]; then
+#	[ -f "${EASYRSA_TARBALL}" ] || die "cannot find easy-rsa tarball '${EASYRSA_TARBALL}'"
+#fi
+#if [ -n "${DO_SIGN}" ]; then
+#	[ -n "${SIGN_PKCS12}" ] || die "please specify PKCS#12 file"
+#	[ -f "${SIGN_PKCS12}" ] || die "cannot find PKCS#12 file '${SIGN_PKCS12}'"
+#fi
+#SIGN_TIMESTAMP_URL="${SIGN_TIMESTAMP_URL:-http://timestamp.verisign.com/scripts/timstamp.dll}"
 
 main
